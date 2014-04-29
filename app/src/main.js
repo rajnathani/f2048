@@ -1,4 +1,5 @@
 /*globals define*/
+
 define(function (require, exports, module) {
       'use strict';
       // import dependencies
@@ -200,7 +201,7 @@ define(function (require, exports, module) {
         localStorage && localStorage.setItem(k, JSON.stringify(v));
       };
       Game.prototype.unstore = function (k) {
-        localStorage && localStorage.removeItem('tiles');
+        localStorage && localStorage.removeItem(k);
       };
       Game.prototype.retrieve = function (k) {
         var item = localStorage && localStorage.getItem(k);
@@ -264,6 +265,7 @@ define(function (require, exports, module) {
         this.changeTiles('destroy');
         this.unstore('state');
         this.unstore('score');
+        this.state = {};
         this.score = {highest: this.score.highest, current: 0};
         this.store('score', this.score);
         this.updateScore();
@@ -272,6 +274,7 @@ define(function (require, exports, module) {
       Game.prototype.start = function () {
         this.spawn();
         this.spawn();
+
       };
 
 
@@ -400,8 +403,11 @@ define(function (require, exports, module) {
               i++;
             }
           }
+
           hopped && this.spawn();
+          this.save();
           if (this.over()) return this.loose();
+
 
 
         }
@@ -419,7 +425,6 @@ define(function (require, exports, module) {
         this.tiles[this.coordID(from[0], from[1])].move(to[0], to[1], true);
         delete this.tiles[this.coordID(from[0], from[1])];
         this.updateScore();
-        this.save();
       };
 
       function BoardBack(game) {
@@ -574,5 +579,4 @@ define(function (require, exports, module) {
         //game.save();
       };
     }
-)
-;
+);
