@@ -42,7 +42,6 @@ define(function (require, exports, module) {
         this.boardNode = new RenderNode(new StateModifier());
         this.ctx.add(new StateModifier({transform: Transform.translate(this.margin_left, 0)})).add(this.nodes);
         this.header();
-        this.bindEvents();
         this.board_back = new BoardBack(this);
         this.board_back.tiles();
 
@@ -62,9 +61,11 @@ define(function (require, exports, module) {
         this.addNode(this.boardNode);
 
         this.footer();
+
         var full_bg = new Surface();
         var full_bg_modifier = new StateModifier({transform: Transform.translate(0, 0, -1)});
         full_bg.pipe(this.nodes);
+        this.bindEvents();
         this.ctx.add(full_bg_modifier).add(full_bg);
         this.nodes.sequenceFrom(this.node_list);
 
@@ -78,8 +79,6 @@ define(function (require, exports, module) {
         Timer.setTimeout(function () {
           self.updateScore();
         }, 200)
-
-
       };
 
       Game.prototype.addNode = function (node) {
@@ -191,10 +190,27 @@ define(function (require, exports, module) {
             self.action(map[e.which]);
           }
         });
+
         // bind events on the board
         this.engine.on('resize', function () {
           self.dimensions() && self.rerender();
         });
+        this.engine.on('touchend', function (e) {
+          if (self.touch_down) {
+            self.touch_down = false;
+            var diff_x = e.clientX - self.touch_down_x;
+            var diff_y = e.clientY - self.touch_down_y;
+            if (diff_x || diff_x) {
+              if (Math.abs(diff_x) > Math.abs(diff_y)) {
+                self.action((diff_x > 0) ? 1 : 3);
+              } else {
+                self.action((diff_y > 0) ? 2 : 0);
+              }
+            }
+          }
+          e.preventDefault();
+
+        })
 
       };
       Game.prototype.store = function (k, v) {
@@ -409,7 +425,6 @@ define(function (require, exports, module) {
           if (this.over()) return this.loose();
 
 
-
         }
       };
       Game.prototype.newTile = function (i, j, v) {
@@ -425,6 +440,15 @@ define(function (require, exports, module) {
         this.tiles[this.coordID(from[0], from[1])].move(to[0], to[1], true);
         delete this.tiles[this.coordID(from[0], from[1])];
         this.updateScore();
+      };
+      Game.prototype.swipe = function (surface) {
+        var self = this;
+        surface.on('touchstart', function (e) {
+          self.touch_down = true;
+          self.touch_down_x = e.clientX;
+          self.touch_down_y = e.clientY;
+          e.preventDefault();
+        });
       };
 
       function BoardBack(game) {
@@ -448,7 +472,7 @@ define(function (require, exports, module) {
 
         this.game.boardNode.add(this.positionNode).add(this.surface);
         this.surface.pipe(this.game.nodes);
-
+        this.game.swipe(this.surface);
       };
       BoardBack.prototype.tiles = function () {
         this.tile_slots = [];
@@ -532,7 +556,9 @@ define(function (require, exports, module) {
         }
 
         this.game.board_back.positionNode.add(this.position_modifier).add(this.aesthetic_modifier).add(this.surface);
+
         this.surface.pipe(this.game.nodes);
+        this.game.swipe(this.surface);
       };
       Tile.prototype.resolveClass = function (v) {
         return v ? ('tile-' + (v > 2048 ? 'super' : v)) : undefined
