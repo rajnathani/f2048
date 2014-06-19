@@ -8,11 +8,14 @@ define(function (require, exports, module) {
       var Transform = require('famous/core/Transform');
       var RenderNode = require('famous/core/RenderNode');
       var StateModifier = require('famous/modifiers/StateModifier');
-      var ScrollView = require('famous/views/ScrollView');
+      var ScrollView = require('famous/views/Scrollview');
       var Easing = require('famous/transitions/Easing');
       var Transitionable = require('famous/transitions/Transitionable');
       var SnapTransition = require('famous/transitions/SnapTransition');
       var Timer = require('famous/utilities/Timer');
+      var TouchSync = require('famous/inputs/TouchSync');
+
+
 
       //var TwineTransition = require('famous/transitions/TwineTransition');
       var tile_animation = {
@@ -38,6 +41,7 @@ define(function (require, exports, module) {
         this.tiles = {};
         this.dimensions();
         this.node_list = [];
+        this.initSwipe();
         this.nodes = new ScrollView({direction: 1});
         this.boardNode = new RenderNode(new StateModifier());
         this.ctx.add(new StateModifier({transform: Transform.translate(this.margin_left, 0)})).add(this.nodes);
@@ -151,7 +155,7 @@ define(function (require, exports, module) {
        */
       Game.prototype.dimensions = function () {
         var prev_navigator = this.navigator;
-        if (this.ctx.getSize()[0] > 520) {
+        if (window.innerWidth > 520) {
           this.navigator = 'desktop';
           this.tile_size = 106.25;
           this.padding = 15;
@@ -161,7 +165,7 @@ define(function (require, exports, module) {
           this.padding = 10;
         }
         this.center_width = ((this.tile_size + this.padding) * (this.sides)) + this.padding;
-        this.margin_left = (this.ctx.getSize()[0] - this.center_width) / 2;
+        this.margin_left = (window.innerWidth - this.center_width) / 2;
 
         return prev_navigator !== this.navigator;
 
@@ -170,6 +174,11 @@ define(function (require, exports, module) {
         if (this.binded) return;
         this.binded = true;
         var self = this;
+        // bind events on the board
+        this.engine.on('resize', function () {
+          self.dimensions() && self.rerender();
+        });
+
         this.engine.on('keydown', function (e) {
           var map = {
             38: 0, // Up
@@ -191,15 +200,25 @@ define(function (require, exports, module) {
           }
         });
 
-        // bind events on the board
-        this.engine.on('resize', function () {
-          self.dimensions() && self.rerender();
+      };
+      Game.prototype.initSwipe = function() {
+        var self = this;
+        this.touchSync = new TouchSync();
+        var touch_position;
+        this.touchSync.on('start', function () {
+          self.touch_down = true;
         });
-        this.engine.on('touchend', function (e) {
+        this.touchSync.on('update', function (data) {
+          console.log('what');
+          touch_position = data.position;
+        });
+
+        this.touchSync.on('end', function () {
           if (self.touch_down) {
             self.touch_down = false;
-            var diff_x = e.clientX - self.touch_down_x;
-            var diff_y = e.clientY - self.touch_down_y;
+            var diff_x = touch_position[0];
+            var diff_y = touch_position[1];
+            console.log(diff_x,diff_y);
             if (diff_x || diff_x) {
               if (Math.abs(diff_x) > Math.abs(diff_y)) {
                 self.action((diff_x > 0) ? 1 : 3);
@@ -208,10 +227,8 @@ define(function (require, exports, module) {
               }
             }
           }
-          e.preventDefault();
 
         })
-
       };
       Game.prototype.store = function (k, v) {
         localStorage && localStorage.setItem(k, JSON.stringify(v));
@@ -442,13 +459,7 @@ define(function (require, exports, module) {
         this.updateScore();
       };
       Game.prototype.swipe = function (surface) {
-        var self = this;
-        surface.on('touchstart', function (e) {
-          self.touch_down = true;
-          self.touch_down_x = e.clientX;
-          self.touch_down_y = e.clientY;
-          e.preventDefault();
-        });
+        surface.pipe(this.touchSync);
       };
 
       function BoardBack(game) {
@@ -457,10 +468,10 @@ define(function (require, exports, module) {
       }
 
       BoardBack.prototype['new'] = function () {
-        this.surface = new Surface({size: [this.game.center_width, this.game.center_width], classes: ['game-container']});
+        this.surface = new Surface({size: [this.game.center_width, this.game.center_width], classes: ['game-container','origin-transform']});
         this.positionNode = new RenderNode(new StateModifier({
           size: [this.game.center_width, this.game.center_width],
-          transform: Transform.scale(1.16, 1.16)
+          transform: Transform.scale(1.46, 1.46)
         }));
 
         this.positionNode._object.setTransform(
@@ -486,7 +497,7 @@ define(function (require, exports, module) {
       BoardBack.prototype.destroy = function () {
         //destroy surface
         // till i find out how to dispose a surface I shall use this inefficient method!
-        this.surface.setProperties({visibility: 'hidden'});
+        this.surface.setProperties({display: 'none'});
         for (var i = 0; i < this.tile_slots.length; i++) {
           this.tile_slots[i].destroy();
         }
@@ -521,7 +532,7 @@ define(function (require, exports, module) {
         this.surface = new Surface({
           size: [this.game.tile_size, this.game.tile_size],
           content: this.v,
-          classes: ['tile', this.resolveClass(this.v)]
+          classes: ['tile', 'origin-transform',this.resolveClass(this.v)]
         });
         this.position_modifier = new StateModifier({
           transform: Transform.translate(this.coordLoc(this.i), this.coordLoc(this.j))
@@ -579,7 +590,7 @@ define(function (require, exports, module) {
       Tile.prototype.destroy = function () {
         //destroy surface
         // till i find out how to dispose a surface I shall use this inefficient method!
-        this.surface.setProperties({visibility: 'hidden'})
+        this.surface.setProperties({display: 'none'})
       };
 
       Tile.prototype.rerender = function () {
